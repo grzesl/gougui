@@ -48,6 +48,7 @@
 //  Oct 11, 2014  V0.1  First release.
 /* -------------------------------------------------------------------------------- */
 #include "ugui.h"
+#include "pt_math.h"
 
 /* Static functions */
  UG_RESULT _UG_WindowDrawTitle( UG_WINDOW* wnd );
@@ -58,7 +59,8 @@
  void _UG_CheckboxUpdate(UG_WINDOW* wnd, UG_OBJECT* obj);
  void _UG_ImageUpdate(UG_WINDOW* wnd, UG_OBJECT* obj);
  void _UG_PutChar( char chr, UG_S16 x, UG_S16 y, UG_COLOR fc, UG_COLOR bc, const UG_FONT* font);
-
+  int _UG_Copy(char*dst, char*src, int len);
+ void _UG_ProcessFocus(UG_WINDOW* wnd);
  /* Pointer to the gui */
 static UG_GUI* gui;
 
@@ -4953,6 +4955,131 @@ const unsigned short fraktal[80*84]={
 #endif
 
 
+ int _UG_Copy(char*dst, char*src, int len) {
+   int i = 0;
+   for (i;i<len;i++) {
+      dst[i] = src[i];
+      if(src[i] == 0)
+         break;
+   }
+   return i;
+ }
+
+
+ int _UG_ObjDistance (UG_OBJECT* obj1, UG_OBJECT* obj2) {
+
+   double x1,x2,y1,y2;
+   x1 = obj1->a_abs.xs;
+   y1 = obj1->a_abs.ys;
+
+   x2 = obj2->a_abs.xs;
+   y2 = obj2->a_abs.ys;
+
+    int x = (int)PT_pow((x2- x1), 2);
+    int y = (int)PT_pow((y2- y1), 2);
+    double dtn = (int)PT_sqrt(x + y);
+    return (int)dtn;
+ }
+
+void _UG_FocusPrepare(UG_WINDOW* wnd, UG_U8 move) {
+
+   UG_U8 i;
+   UG_OBJECT* obj=(UG_OBJECT*)wnd->objlst;
+
+   UG_OBJECT* oldFocus = wnd->objfcs;
+   UG_OBJECT* newFocus = NULL;
+
+   UG_S32 distance = 0xffff;
+
+   if(move == UG_MOVE_FOCUS_NONE)
+      return;
+
+   if(oldFocus == NULL)
+      newFocus =  (UG_OBJECT *)&wnd->objlst[0];
+   else 
+   {
+      
+      for (i = 0; i < wnd->objcnt; i++)
+      {
+         obj = (UG_OBJECT *)(&wnd->objlst[i]);
+
+         if(obj == oldFocus)
+            continue;
+
+         if ((obj->state & OBJ_STATE_FREE) && !(obj->state & OBJ_STATE_VALID) )
+            continue;
+
+         if(obj->type != OBJ_TYPE_BUTTON)
+            continue;
+
+         UG_S32 objdistance = _UG_ObjDistance(oldFocus, obj);
+
+         if(distance <  objdistance)
+            continue;
+
+         UG_S32 vectx, vecty;
+         vectx = oldFocus->a_abs.xs - obj->a_abs.xs;
+         vecty = oldFocus->a_abs.ys - obj->a_abs.ys;
+
+         switch (move)
+         {
+         case UG_MOVE_FOCUS_UP:
+            if (vecty > 0)
+            {
+               distance = objdistance;
+               newFocus = obj;
+            }
+
+               break;
+
+         case UG_MOVE_FOCUS_DOWN:
+            if (vecty < 0)
+            {
+               distance = objdistance;
+               newFocus = obj;
+            }
+            break;
+
+         case UG_MOVE_FOCUS_LEFT:
+            if (vectx > 0)
+            {
+               distance = objdistance;
+               newFocus = obj;
+            }
+            break;
+
+         case UG_MOVE_FOCUS_RIGHT:
+            if (vectx < 0)
+            {
+               distance = objdistance;
+               newFocus = obj;
+            }
+            break;
+
+         default:
+            break;
+         }
+      }
+   }
+
+   if(oldFocus != NULL && newFocus != NULL) {
+      oldFocus->state &= ~OBJ_STATE_FOCUSED;
+      oldFocus->state |= OBJ_STATE_UPDATE;
+      oldFocus->state |= OBJ_STATE_REDRAW;
+      oldFocus->fcs_state = OBJ_FOCUS_STATE_CHANGED | OBJ_FOCUS_STATE_LEAVE;
+   }
+
+   if(newFocus != NULL) {
+      newFocus->state |= OBJ_STATE_FOCUSED;
+      newFocus->state |= OBJ_STATE_UPDATE;
+      newFocus->state |= OBJ_STATE_REDRAW;
+      newFocus->fcs_state = OBJ_FOCUS_STATE_CHANGED | OBJ_FOCUS_STATE_ENTER;
+
+      wnd->objfcs = newFocus;
+   }
+
+  
+ }
 
 UG_S16 UG_Init( UG_GUI* g, UG_Init_Callback p, UG_S16 x, UG_S16 y )
 {
@@ -4990,6 +5117,8 @@ UG_S16 UG_Init( UG_GUI* g, UG_Init_Callback p, UG_S16 x, UG_S16 y )
    g->touch.state = -1;
    g->touch.xp = -1;
    g->touch.yp = -1;
+
+   g->fcs_move = UG_MOVE_FOCUS_NONE;
 
    /* Clear drivers */
    for(i=0;i<NUMBER_OF_DRIVERS;i++)
@@ -5607,6 +5736,25 @@ const UG_COLOR pal_checkbox_released[] =
    0xA0A0A0,
    0xA0A0A0,
 };
+
+const UG_COLOR pal_focused[] =
+{
+   /* Frame 0 */
+   0xFF84E4,
+   0xFF84E4,
+   0xFF84E4,
+   0xFF84E4,
+   /* Frame 1 */
+   0xFF84E4,
+   0xFF84E4,
+   0xFF84E4,
+   0xFF84E4,
+   /* Frame 2 */
+   0xFF84E4,
+   0xFF84E4,
+   0xFF84E4,
+   0xFF84E4,
+};
 #endif
 
 #ifdef USE_COLOR_RGB565
@@ -5696,6 +5844,24 @@ const UG_COLOR pal_checkbox_released[] =
 
     0xE71C,
     0xE71C,
+    0x9D13,
+    0x9D13,
+};
+
+const UG_COLOR pal_focused[] =
+{
+    0x63FF,
+    0x63FF,
+    0x63FF,
+    0x63FF,
+
+    0xFFFF,
+    0xFFFF,
+    0x6BFF,
+    0x6BFF,
+
+    0xE7FF,
+    0xE7FF,
     0x9D13,
     0x9D13,
 };
@@ -5972,6 +6138,25 @@ UG_RESULT _UG_DeleteObject( UG_WINDOW* wnd, UG_U8 type, UG_U8 id )
       return UG_RESULT_OK;
    }
    return UG_RESULT_FAIL;
+}
+
+
+void _UG_ProcessFocus( UG_WINDOW* wnd )
+{
+   wnd->movefcs = gui->fcs_move;
+   _UG_FocusPrepare(wnd, wnd->movefcs);
+
+   gui->fcs_move = UG_MOVE_FOCUS_NONE;
+   wnd->movefcs = UG_MOVE_FOCUS_NONE;
+
+   if (wnd->objfcs != NULL && gui->fcs_press == 1){
+      UG_TouchUpdate(wnd->objfcs->a_abs.xs + 1, wnd->objfcs->a_abs.ys + 1, 1);
+      gui->fcs_press = 2;
+   } else if(wnd->objfcs != NULL && gui->fcs_press == 2) {
+      UG_TouchUpdate(wnd->objfcs->a_abs.xs + 1, wnd->objfcs->a_abs.ys + 1, 0);
+      gui->fcs_press = 0;
+   }
+   
 }
 
 void _UG_ProcessTouchData( UG_WINDOW* wnd )
@@ -6303,6 +6488,7 @@ void UG_Update( void )
       /* Is the window visible? */
       if ( wnd->state & WND_STATE_VISIBLE )
       {
+         _UG_ProcessFocus( wnd );
          _UG_ProcessTouchData( wnd );
          _UG_UpdateObjects( wnd );
          _UG_HandleEvents( wnd );
@@ -6369,6 +6555,16 @@ void UG_TouchUpdate( UG_S16 xp, UG_S16 yp, UG_U8 state )
    gui->touch.state = state;
 }
 
+void UG_FocusUpdate(UG_U8 move)
+{
+   gui->fcs_move = move;
+}
+
+void UG_PressFocused()
+{
+   gui->fcs_press = 1;
+}
+
 /* -------------------------------------------------------------------------------- */
 /* -- WINDOW FUNCTIONS                                                           -- */
 /* -------------------------------------------------------------------------------- */
@@ -6408,7 +6604,7 @@ UG_RESULT UG_WindowCreate( UG_WINDOW* wnd, UG_OBJECT* objlst, UG_U8 objcnt, UG_M
    wnd->style = WND_STYLE_3D | WND_STYLE_SHOW_TITLE;
 
    /* Initialize window title-bar */
-   wnd->title.str = NULL;
+   *wnd->title.str = 0;
    if (gui != NULL) wnd->title.font = &gui->font;
    else wnd->title.font = NULL;
    wnd->title.h_space = 2;
@@ -6424,6 +6620,9 @@ UG_RESULT UG_WindowCreate( UG_WINDOW* wnd, UG_OBJECT* objlst, UG_U8 objcnt, UG_M
    wnd->title.prev_touch_px = -1;
    wnd->title.prev_touch_py = -1;
    wnd->title.touch_state = -1;
+
+   /*focus init*/
+   wnd->objfcs = NULL;
 
    return UG_RESULT_OK;
 }
@@ -6613,7 +6812,8 @@ UG_RESULT UG_WindowSetTitleText( UG_WINDOW* wnd, char* str )
 {
    if ( (wnd != NULL) && (wnd->state & WND_STATE_VALID) )
    {
-      wnd->title.str = str;
+      _UG_Copy(wnd->title.str, str, UG_MAX_TEXT_LEN);
+      //wnd->title.str = str;
       wnd->state |= WND_STATE_UPDATE | WND_STATE_REDRAW_TITLE;
       return UG_RESULT_OK;
    }
@@ -7044,7 +7244,8 @@ UG_RESULT _UG_WindowDrawTitle( UG_WINDOW* wnd )
       UG_FillFrame(xs,ys,xe,ys+wnd->title.height-1,txt.bc);
 
       /* Draw title text */
-      txt.str = wnd->title.str;
+      //txt.str = wnd->title.str;
+      _UG_Copy(txt.str , wnd->title.str, UG_MAX_TEXT_LEN);
       txt.font = wnd->title.font;
       txt.a.xs = xs+3;
       txt.a.ys = ys;
@@ -7204,7 +7405,8 @@ UG_RESULT UG_ButtonCreate( UG_WINDOW* wnd, UG_BUTTON* btn, UG_U8 id, UG_S16 xs, 
    btn->align = ALIGN_CENTER;
    if (gui != NULL) btn->font = &gui->font;
    else btn->font = NULL;
-   btn->str = "-";
+   btn->str[0] = '-';
+   btn->str[1] = 0;
 
    /* Initialize standard object parameters */
    obj->update = _UG_ButtonUpdate;
@@ -7335,7 +7537,8 @@ UG_RESULT UG_ButtonSetText( UG_WINDOW* wnd, UG_U8 id, char* str )
    if ( obj == NULL ) return UG_RESULT_FAIL;
 
    btn = (UG_BUTTON*)(obj->data);
-   btn->str = str;
+   _UG_Copy(btn->str, str, UG_MAX_TEXT_LEN);
+   //btn->str = str;
    obj->state |= OBJ_STATE_UPDATE | OBJ_STATE_REDRAW;
 
    return UG_RESULT_OK;
@@ -7641,6 +7844,25 @@ void _UG_ButtonUpdate(UG_WINDOW* wnd, UG_OBJECT* obj)
    }
 
    /* -------------------------------------------------- */
+   /* Focus section                                      */
+   /* -------------------------------------------------- */
+   if(obj->fcs_state & OBJ_FOCUS_STATE_CHANGED)
+   {
+      if(obj->fcs_state & OBJ_FOCUS_STATE_ENTER)
+      {
+         obj->state |= OBJ_STATE_FOCUSED;
+         obj->state |= OBJ_STATE_UPDATE;
+         obj->event = OBJ_EVENT_FOCUS_ENTER;
+      } else if (obj->fcs_state & OBJ_FOCUS_STATE_LEAVE)
+      {
+         obj->state &= ~OBJ_STATE_FOCUSED;
+         obj->state |= OBJ_STATE_UPDATE;
+         obj->event = OBJ_EVENT_FOCUS_LEAVE;
+      }
+
+      obj->fcs_state &= ~OBJ_FOCUS_STATE_CHANGED;
+   }
+   /* -------------------------------------------------- */
    /* Object update section                              */
    /* -------------------------------------------------- */
    if ( obj->state & OBJ_STATE_UPDATE )
@@ -7695,7 +7917,8 @@ void _UG_ButtonUpdate(UG_WINDOW* wnd, UG_OBJECT* obj)
             txt.font = btn->font;
             txt.h_space = 2;
             txt.v_space = 2;
-            txt.str = btn->str;
+            _UG_Copy(txt.str, btn->str, UG_MAX_TEXT_LEN);
+            //txt.str = btn->str;
             _UG_PutText( &txt );
             obj->state &= ~OBJ_STATE_REDRAW;
 #ifdef USE_POSTRENDER_EVENT
@@ -7713,6 +7936,13 @@ void _UG_ButtonUpdate(UG_WINDOW* wnd, UG_OBJECT* obj)
              {  /* 2D */
                  UG_DrawFrame(obj->a_abs.xs,obj->a_abs.ys,obj->a_abs.xe,obj->a_abs.ye,(btn->state&BTN_STATE_PRESSED)?btn->abc:btn->afc);
              }
+         }
+
+         /* Draw focus frame*/
+         if (obj->state & OBJ_STATE_FOCUSED)
+         {
+            UG_DrawRoundFrame(obj->a_abs.xs + 3, obj->a_abs.ys + 3, obj->a_abs.xe - 3, obj->a_abs.ye - 3, 3, (UG_COLOR *)pal_focused);
+            UG_DrawRoundFrame(obj->a_abs.xs + 4, obj->a_abs.ys + 4, obj->a_abs.xe - 4, obj->a_abs.ye - 4, 3, (UG_COLOR *)pal_focused);
          }
       }
       else
@@ -7744,7 +7974,8 @@ UG_RESULT UG_CheckboxCreate( UG_WINDOW* wnd, UG_CHECKBOX* chb, UG_U8 id, UG_S16 
    chb->align = ALIGN_TOP_LEFT;
    if (gui != NULL) chb->font = &gui->font;
    else chb->font = NULL;
-   chb->str = "-";
+   chb->str[0] = '-';
+   chb->str[1] = 0;
    chb->checked = 0; 
 
    /* Initialize standard object parameters */
@@ -7892,7 +8123,8 @@ UG_RESULT UG_CheckboxSetText( UG_WINDOW* wnd, UG_U8 id, char* str )
    if ( obj == NULL ) return UG_RESULT_FAIL;
 
    btn = (UG_CHECKBOX*)(obj->data);
-   btn->str = str;
+   _UG_Copy(btn->str, str, UG_MAX_TEXT_LEN);
+   //btn->str = str;
    obj->state |= OBJ_STATE_UPDATE | OBJ_STATE_REDRAW;
 
    return UG_RESULT_OK;
@@ -8276,7 +8508,8 @@ void _UG_CheckboxUpdate(UG_WINDOW* wnd, UG_OBJECT* obj)
             txt.font = chb->font;
             txt.h_space = 2;
             txt.v_space = 2;
-            txt.str = chb->str;
+            _UG_Copy(txt.str, chb->str, UG_MAX_TEXT_LEN);
+           // txt.str = chb->str;
             _UG_PutText( &txt );
             obj->state &= ~OBJ_STATE_REDRAW;
 #ifdef USE_POSTRENDER_EVENT
@@ -8339,7 +8572,7 @@ UG_RESULT UG_TextboxCreate( UG_WINDOW* wnd, UG_TEXTBOX* txb, UG_U8 id, UG_S16 xs
    if ( obj == NULL ) return UG_RESULT_FAIL;
 
    /* Initialize object-specific parameters */
-   txb->str = NULL;
+   txb->str[0] = 0;
    if (gui != NULL) txb->font = &gui->font;
    else txb->font = NULL;
    txb->style = 0; /* reserved */
@@ -8442,7 +8675,8 @@ UG_RESULT UG_TextboxSetText( UG_WINDOW* wnd, UG_U8 id, char* str )
    if ( obj == NULL ) return UG_RESULT_FAIL;
 
    txb = (UG_TEXTBOX*)(obj->data);
-   txb->str = str;
+   _UG_Copy(txb->str, str, UG_MAX_TEXT_LEN);
+   //txb->str = str;
    obj->state |= OBJ_STATE_UPDATE | OBJ_STATE_REDRAW;
 
    return UG_RESULT_OK;
@@ -8666,7 +8900,9 @@ void _UG_TextboxUpdate(UG_WINDOW* wnd, UG_OBJECT* obj)
             txt.font = txb->font;
             txt.h_space = txb->h_space;
             txt.v_space = txb->v_space;
-            txt.str = txb->str;
+
+            _UG_Copy(txt.str , txb->str, UG_MAX_TEXT_LEN);
+            //txt.str = txb->str;
             _UG_PutText( &txt );
             obj->state &= ~OBJ_STATE_REDRAW;
 #ifdef USE_POSTRENDER_EVENT

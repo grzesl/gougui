@@ -8,9 +8,9 @@
 //#define USE_MULTITASKING    
 
 /* Enable color mode */
-#define USE_COLOR_RGB888   // RGB = 0xFF,0xFF,0xFF
+#define USE_COLOR_RGB888     // RGB = 0xFF,0xFF,0xFF
 //#define USE_COLOR_RGB565   // RGB = 0bRRRRRGGGGGGBBBBB 
-
+   
 /* Enable needed fonts here */
 #define  USE_FONT_4X6
 #define  USE_FONT_5X8
@@ -41,6 +41,7 @@ typedef short      UG_S16;
 typedef unsigned int     UG_U32;
 typedef int      UG_S32;
 
+#define UG_MAX_TEXT_LEN 255
 
 /* Example for dsPIC33
 typedef unsigned char         UG_U8;

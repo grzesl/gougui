@@ -194,7 +194,7 @@ typedef struct
 /* Text structure */
 typedef struct
 {
-   char* str;
+   char str[UG_MAX_TEXT_LEN + 1];
    const UG_FONT* font;
    UG_AREA a;
    UG_COLOR fc;
@@ -268,7 +268,7 @@ typedef struct
 typedef void (*UG_OBJECT_UPDATE) (UG_WINDOW*,UG_OBJECT*);
 struct S_OBJECT
 {
-   UG_U8 state;                              /* object state                               */
+   UG_U16 state;                              /* object state                               */
    UG_U8 touch_state;                        /* object touch state                         */
    UG_OBJECT_UPDATE update;   /* pointer to object-specific update function */
    UG_AREA a_abs;                            /* absolute area of the object                */
@@ -277,6 +277,7 @@ struct S_OBJECT
    UG_U8 id;                                 /* object ID                                  */
    UG_U8 event;                              /* object-specific events                     */
    void* data;                               /* pointer to object-specific data            */
+   UG_U8 fcs_state;                          /* object focus state*/
 };
 
 /* Currently supported objects */
@@ -299,6 +300,8 @@ struct S_OBJECT
 #define OBJ_EVENT_PRESSED                             4
 #define OBJ_EVENT_RELEASED                            5
 #define OBJ_EVENT_DRAG                                6
+#define OBJ_EVENT_FOCUS_ENTER                         7
+#define OBJ_EVENT_FOCUS_LEAVE                         8 
 
 /* Object states */
 #define OBJ_STATE_FREE                                (1<<0)
@@ -310,6 +313,12 @@ struct S_OBJECT
 #define OBJ_STATE_REDRAW                              (1<<6)
 #define OBJ_STATE_TOUCH_ENABLE                        (1<<7)
 #define OBJ_STATE_INIT                                (OBJ_STATE_FREE | OBJ_STATE_VALID)
+#define OBJ_STATE_FOCUSED                             (1<<8)
+
+/* Focus states */
+#define OBJ_FOCUS_STATE_CHANGED                       (1<<0)
+#define OBJ_FOCUS_STATE_ENTER                         (1<<1)
+#define OBJ_FOCUS_STATE_LEAVE                         (1<<2)
 
 /* Object touch states */
 #define OBJ_TOUCH_STATE_CHANGED                       (1<<0)
@@ -323,13 +332,18 @@ struct S_OBJECT
 #define OBJ_TOUCH_STATE_DRAG_OBJECT                   (1<<8)
 #define OBJ_TOUCH_STATE_INIT                          0
 
+#define UG_MOVE_FOCUS_NONE   0 
+#define UG_MOVE_FOCUS_UP     1
+#define UG_MOVE_FOCUS_DOWN   2
+#define UG_MOVE_FOCUS_LEFT   3
+#define UG_MOVE_FOCUS_RIGHT  4
 /* -------------------------------------------------------------------------------- */
 /* -- WINDOW                                                                     -- */
 /* -------------------------------------------------------------------------------- */
 /* Title structure */
 typedef struct
 {
-   char* str;
+   char str [UG_MAX_TEXT_LEN + 1];
    const UG_FONT* font;
    UG_S8 h_space;
    UG_S8 v_space;
@@ -363,6 +377,8 @@ struct S_WINDOW
    UG_U8 style;
    UG_TITLE title;
    UG_Message_Callback cb;
+   UG_OBJECT* objfcs;
+   UG_U8 movefcs;
 };
 
 /* Window states */
@@ -386,7 +402,7 @@ struct S_WINDOW
 /* Button structure */
 typedef struct
 {
-   UG_U8 state;
+   UG_U16 state;
    UG_U8 style;
    UG_COLOR fc;
    UG_COLOR bc;
@@ -396,7 +412,7 @@ typedef struct
    UG_U8 align;
    UG_S8 h_space;
    UG_S8 v_space;
-   char* str;
+   char str[UG_MAX_TEXT_LEN + 1];
 }UG_BUTTON;
 
 /* Default button IDs */
@@ -453,7 +469,7 @@ typedef struct
    UG_U8 align;
    UG_S8 h_space;
    UG_S8 v_space;
-   char* str;
+   char str[UG_MAX_TEXT_LEN + 1];
    UG_U8 checked;
 }UG_CHECKBOX;
 
@@ -502,7 +518,7 @@ typedef struct
 /* Textbox structure */
 typedef struct
 {
-   char* str;
+   char str[UG_MAX_TEXT_LEN + 1];
    const UG_FONT* font;
    UG_U8 style;
    UG_COLOR fc;
@@ -620,6 +636,8 @@ typedef struct
    UG_COLOR desktop_color;
    UG_U8 state;
    UG_DRIVER driver[NUMBER_OF_DRIVERS];
+   UG_U8 fcs_move;
+   UG_U8 fcs_press;
 } UG_GUI;
 
 #define UG_SATUS_WAIT_FOR_UPDATE                      (1<<0)
@@ -952,6 +970,8 @@ void UG_WaitForUpdate( void );
 void UG_Update( void );
 void UG_DrawBMP( UG_S16 xp, UG_S16 yp, UG_BMP* bmp );
 void UG_TouchUpdate( UG_S16 xp, UG_S16 yp, UG_U8 state );
+void UG_FocusUpdate(UG_U8 move );
+void UG_PressFocused();
 
 /* Driver functions */
 void UG_DriverRegister( UG_U8 type, void* driver );

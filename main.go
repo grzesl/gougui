@@ -104,15 +104,6 @@ func main() {
 	ug.UG_WindowSetTitleText(&window1, "\xB5GUI Window title")
 	ug.UG_WindowResize(&window1, 1, 1, 400, 400)
 
-	ug.UG_TextboxCreate(&window1, &textbox1, ug.TXB_ID_0, 60, 1, 300, 25)
-	ug.UG_TextboxSetFont(&window1, ug.TXB_ID_0, ug.FONT_ID_8X12)
-	ug.UG_TextboxSetText(&window1, ug.TXB_ID_0, "GOLang + \xB5GUI + GoSDL2")
-	ug.UG_TextboxSetBackColor(&window1, ug.TXB_ID_0, ug.C_ALICE_BLUE)
-	ug.UG_TextboxShow(&window1, ug.TXB_ID_0)
-
-	ug.UG_ImageCreate(&window1, &image1, ug.IMG_ID_0, 80, 30, 330, 265)
-	ug.UG_ImageSetBMP(&window1, ug.IMG_ID_0, &logo)
-
 	ug.UG_ButtonCreate(&window1, &button1, BTN_ID_0, 1, 1, 50, 50)
 	ug.UG_ButtonSetFont(&window1, BTN_ID_0, ug.FONT_ID_8X14)
 	ug.UG_ButtonSetText(&window1, BTN_ID_0, "C")
@@ -128,6 +119,15 @@ func main() {
 	ug.UG_ButtonSetFont(&window1, BTN_ID_2, ug.FONT_ID_8X14)
 	ug.UG_ButtonShow(&window1, BTN_ID_2)
 
+	ug.UG_TextboxCreate(&window1, &textbox1, ug.TXB_ID_0, 60, 1, 300, 25)
+	ug.UG_TextboxSetFont(&window1, ug.TXB_ID_0, ug.FONT_ID_8X12)
+	ug.UG_TextboxSetText(&window1, ug.TXB_ID_0, "GOLang + \xB5GUI + GoSDL2")
+	ug.UG_TextboxSetBackColor(&window1, ug.TXB_ID_0, ug.C_WHITE)
+	ug.UG_TextboxShow(&window1, ug.TXB_ID_0)
+
+	ug.UG_ImageCreate(&window1, &image1, ug.IMG_ID_0, 80, 30, 330, 265)
+	ug.UG_ImageSetBMP(&window1, ug.IMG_ID_0, &logo)
+
 	ug.UG_WindowShow(&window1)
 
 	ug.UG_ConsoleSetBackcolor(ug.C_BLACK)
@@ -138,15 +138,29 @@ func main() {
 	ug.UG_ConsolePutString("Press the button...\n")
 	ug.UG_ConsoleSetForecolor(ug.C_WHITE)
 
+	ug.UG_FocusUpdate(ug.UG_MOVE_FOCUS_UP)
+
 	for running {
 		ug.UG_Update()
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-			switch event.(type) {
+			switch t := event.(type) {
 			case *sdl.MouseButtonEvent:
 				x, y, state := sdl.GetMouseState()
 
 				ug.UG_TouchUpdate(ug.UG_S16(x), ug.UG_S16(y), ug.UG_U8(state))
 
+			case *sdl.KeyboardEvent:
+				if t.Keysym.Sym == sdl.K_UP && t.State == sdl.RELEASED {
+					ug.UG_FocusUpdate(ug.UG_MOVE_FOCUS_UP)
+				} else if t.Keysym.Sym == sdl.K_DOWN && t.State == sdl.RELEASED {
+					ug.UG_FocusUpdate(ug.UG_MOVE_FOCUS_DOWN)
+				} else if t.Keysym.Sym == sdl.K_LEFT && t.State == sdl.RELEASED {
+					ug.UG_FocusUpdate(ug.UG_MOVE_FOCUS_LEFT)
+				} else if t.Keysym.Sym == sdl.K_RIGHT && t.State == sdl.RELEASED {
+					ug.UG_FocusUpdate(ug.UG_MOVE_FOCUS_RIGHT)
+				} else if t.Keysym.Sym == sdl.K_RETURN && t.State == sdl.RELEASED {
+					ug.UG_PressFocused()
+				}
 			case *sdl.QuitEvent:
 				println("Quit")
 				ug.UG_ConsolePutString("Quit")
